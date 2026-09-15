@@ -1,0 +1,495 @@
+<title>ARIA · Performance Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+:root{
+  --bg:#EDF0F5; --surface:#FFFFFF; --card:#F5F7FB; --ink:#1B2439; --muted:#5E6879; --faint:#98A0AF;
+  --line:#E6E9F0; --line2:#EFF2F7;
+  --accent:#1B47C0; --accent-ink:#143795; --accent-soft:#E8EDFB;
+  --c1:#2563EB; --c2:#14B8A6; --c3:#F59E0B; --c4:#EC4899; --c5:#6366F1; --c6:#38BDF8;
+  --good:#149E6A; --good-bg:#E3F3EC; --warn:#B9812A; --warn-bg:#F7EFDD; --bad:#D24A45; --bad-bg:#FBE7E6;
+  --track:#EAEDF3; --shadow:0 1px 2px rgba(30,40,70,.04),0 4px 16px rgba(30,40,70,.06);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:"Plus Jakarta Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;margin:0}
+.wrap{max-width:1440px;margin:0 auto;padding-block:22px;padding-left:26px;padding-right:26px}
+.num{font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;text-wrap:balance}
+
+/* GATE */
+#gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.gatecard{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);width:100%;max-width:390px;padding:38px 34px;text-align:center}
+.gatecard .glogo{height:30px;margin-bottom:20px}
+.gatecard .aria{font-weight:800;font-size:40px;letter-spacing:-.02em;color:var(--accent);line-height:1}
+.gatecard .by{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-top:9px;opacity:.8}
+.gatecard .gsub{font-size:13px;color:var(--muted);margin:18px 0 22px;border-top:1px solid var(--line2);padding-top:20px}
+.gatecard label{display:block;text-align:left;font-size:12px;color:var(--muted);font-weight:600;margin:0 0 5px}
+.gatecard input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;background:var(--card);color:var(--ink);margin-bottom:14px}
+.gatecard input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+.gatecard button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.gatecard button:hover{background:var(--accent-ink)}
+.gerr{color:var(--bad);font-size:12.5px;margin-top:12px;min-height:16px;font-weight:500}
+.gatecard .gfoot{font-size:11px;color:var(--faint);margin-top:20px;line-height:1.5}
+
+/* HEADER */
+.brandbar{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.brandbar .logo{height:25px;width:auto}
+.brandbar .bdiv{width:1px;height:26px;background:var(--line)}
+.brandbar .aria{font-weight:800;font-size:21px;color:var(--accent);letter-spacing:-.01em;line-height:1}
+.brandbar .aria small{display:block;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);opacity:.7;font-weight:700;margin-top:3px}
+.topact{margin-left:auto;display:flex;gap:8px}
+.btn{font-size:12.5px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:7px 13px;cursor:pointer;font-family:inherit;font-weight:600}
+.btn:hover{color:var(--ink);border-color:var(--faint)}
+.masthead{margin-top:16px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.masthead h1{font-weight:700;font-size:clamp(23px,2.6vw,31px);letter-spacing:-.02em;line-height:1.05;margin-top:7px}
+.masthead .sub{color:var(--muted);font-size:12.5px;margin-top:7px}
+.masthead .sub b{color:var(--ink);font-weight:600}
+.status-line{display:flex;flex-wrap:wrap;gap:7px;align-items:center;justify-content:flex-end;max-width:520px}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:500;padding:5px 10px;border-radius:20px;border:1px solid var(--line);background:var(--surface);white-space:nowrap;color:var(--muted)}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.chip.ok .dot{background:var(--good)} .chip.warn .dot{background:var(--warn)} .chip.bad .dot{background:var(--bad)}
+.chip.ghost{color:var(--faint);border-style:dashed} .chip.ghost .dot{background:var(--faint)}
+
+/* LAYOUT: main scroll + insight rail */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 366px;gap:20px;align-items:start;margin-top:20px}
+.main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.slab{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700;margin:8px 2px 0}
+.rail{position:sticky;top:14px;max-height:calc(100vh - 28px);overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:3px}
+.rail::-webkit-scrollbar{width:7px}.rail::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.railhead{display:flex;align-items:center;gap:9px;padding:2px 2px 2px}
+.railhead h2{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.railhead .badge{font-size:9.5px;color:var(--accent-ink);background:var(--accent-soft);padding:3px 8px;border-radius:6px;font-weight:700;letter-spacing:.08em}
+
+/* CARDS */
+.grid{display:grid;gap:14px}
+.g-3{grid-template-columns:repeat(auto-fit,minmax(215px,1fr))}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:16px 18px}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:4px;flex-wrap:wrap}
+.card-h h3{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.card-h .hint{font-size:11.5px;color:var(--faint);margin-top:2px}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+.seg button{appearance:none;border:0;background:none;font:inherit;font-size:11.5px;color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--accent-ink);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+
+/* HERO */
+.hero{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;align-items:stretch}
+.hchart{position:relative}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:8px;transform:translate(-50%,-115%);white-space:nowrap;opacity:0;transition:opacity .1s;font-variant-numeric:tabular-nums;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.goals{display:flex;flex-direction:column;justify-content:center;gap:14px;border-left:1px solid var(--line2);padding-left:20px}
+.goal .gl{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--muted);font-weight:600}
+.goal .gl .bench{color:var(--faint);font-weight:500}
+.goal .gv{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:3px 0 6px;font-variant-numeric:tabular-nums}
+.goal .gbar{height:6px;border-radius:4px;background:var(--track);overflow:hidden}
+.goal .gbar i{display:block;height:100%;border-radius:4px}
+.goal .gp{font-size:10.5px;color:var(--faint);margin-top:5px}.goal .gp b{font-weight:700}
+
+.donut-wrap{display:flex;flex-direction:column;align-items:center}
+.donut{position:relative;width:132px;height:132px}
+.donut .dc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.donut .dc .dt{font-size:18px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.donut .dc .ds{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.dlegend{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;width:100%;margin-top:12px}
+.dlegend .li{display:flex;align-items:flex-start;gap:8px}
+.dlegend .sw{width:9px;height:9px;border-radius:3px;flex:0 0 auto;margin-top:3px}
+.dlegend .lt{font-size:11.5px;font-weight:500;color:var(--muted);line-height:1.2}
+.dlegend .lv{font-weight:700;color:var(--ink);font-size:12.5px;font-variant-numeric:tabular-nums}
+.dlegend .lp{font-size:10.5px;color:var(--faint)}
+
+.mini{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.mini .ml{font-size:11px;color:var(--muted);letter-spacing:.02em;text-transform:uppercase;font-weight:700}
+.mini .mv{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin-top:7px;font-variant-numeric:tabular-nums}
+.mini .md{font-size:11.5px;color:var(--faint);margin-top:5px}.mini .md .delta{font-weight:700}
+.spark{width:110px;flex:0 0 auto}
+.delta.up{color:var(--good)} .delta.down{color:var(--bad)} .delta.flat{color:var(--muted)}
+.twostat{display:flex;gap:10px;margin:11px 0 4px}
+.twostat .s{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.twostat .s .sl{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.twostat .s .sv{font-size:17px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.bignum{font-size:30px;font-weight:800;letter-spacing:-.03em;margin:12px 0 2px;font-variant-numeric:tabular-nums}
+.bigsub{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.bigdesc{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.5}
+.mixbar{height:24px;border-radius:7px;overflow:hidden;display:flex;margin:12px 0 8px}
+.mixbar .seg1{background:var(--c1)} .mixbar .seg2{background:var(--c3)}
+.mixrow{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-top:1px solid var(--line2)}
+.mixrow .k{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:500}.mixrow .k .sw{width:9px;height:9px;border-radius:3px}
+.mixrow .v{font-weight:700;font-variant-numeric:tabular-nums}
+
+.ptable{width:100%;border-collapse:collapse;font-size:12.5px}
+.ptable td{padding:8px 0;border-top:1px solid var(--line2);vertical-align:middle}
+.ptable tr:first-child td{border-top:0}
+.ptable .pn{font-weight:500;padding-right:12px;max-width:220px}
+.ptable .pbarcell{width:34%}
+.pbar{height:7px;border-radius:4px;background:var(--track);overflow:hidden}.pbar i{display:block;height:100%;border-radius:4px}
+.ptable .pv{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:12px}
+.rk{color:var(--faint);font-variant-numeric:tabular-nums;padding-right:8px}
+.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+.dt th{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);font-weight:700;padding:7px 10px;text-align:right;border-bottom:1px solid var(--line)}
+.dt th:first-child,.dt td:first-child{text-align:left}
+.dt td{padding:10px;border-bottom:1px solid var(--line2);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dt tr:last-child td{border-bottom:0}
+.dt .grouphead th{text-align:center;border-bottom:0;padding-bottom:2px;color:var(--muted);font-size:9.5px}
+.dt td.gsep,.dt th.gsep{border-left:1px solid var(--line2)}
+.dt .mname{font-weight:700;text-align:left}
+.tblwrap{overflow-x:auto}
+.updown{font-weight:700}.updown.up{color:var(--good)}.updown.down{color:var(--bad)}
+
+.heat{display:grid;gap:5px;margin-top:6px}
+.heatrow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cell{border-radius:8px;padding:8px;border:1px solid var(--line2);min-height:52px;display:flex;flex-direction:column;justify-content:space-between}
+.cell .cd{font-size:10px;color:var(--muted)} .cell .cv{font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+.legend{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--faint);margin-top:10px}
+.legbar{height:8px;width:120px;border-radius:4px;background:linear-gradient(90deg,var(--line2),var(--accent))}
+
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.cmp .c{padding:14px 16px}.cmp .cl{font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700}
+.cmp .cv{font-size:22px;font-weight:800;margin:7px 0 3px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.cmp .cs{font-size:11.5px;color:var(--faint)}
+.legrow{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-top:10px}
+.legrow span{display:inline-flex;align-items:center;gap:6px}.legrow .sw{width:11px;height:11px;border-radius:3px}
+
+/* RAIL cards */
+.rcard{background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:15px 16px}
+.rcard h3{font-size:13.5px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:8px}
+.rcard .rsub{font-size:11px;color:var(--faint);margin-bottom:10px}
+.hl{display:grid;grid-template-columns:13px 1fr;gap:9px;padding:10px 0;border-top:1px solid var(--line2);align-items:start}
+.hl:first-of-type{border-top:0;padding-top:4px}
+.hl .sev{width:8px;height:8px;border-radius:50%;margin-top:5px}
+.hl.crit .sev{background:var(--bad)} .hl.watch .sev{background:var(--warn)} .hl.good .sev{background:var(--good)} .hl.note .sev{background:var(--accent)}
+.hl .lead{color:var(--ink);font-weight:700;font-size:12.5px}
+.hl .txt{font-size:11.8px;color:var(--muted);line-height:1.5}.hl .txt b{color:var(--ink);font-weight:600}
+.find{padding:11px 0;border-top:1px solid var(--line2)}.find:first-of-type{border-top:0;padding-top:4px}
+.find .ft{font-weight:700;color:var(--ink);font-size:12.5px;display:flex;gap:8px;margin-bottom:3px}
+.find .fnum{color:var(--accent-ink);background:var(--accent-soft);min-width:19px;height:19px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:0 0 auto}
+.find .fb{font-size:11.8px;color:var(--muted);line-height:1.5;padding-left:27px}.find .fb b{color:var(--ink);font-weight:600}
+.rec{border-left:3px solid var(--accent);background:var(--card);border-radius:8px;padding:11px 12px;margin-top:10px}
+.rec:first-of-type{margin-top:0}
+.rec.high{border-left-color:var(--bad)} .rec.med{border-left-color:var(--warn)} .rec.watch{border-left-color:var(--accent)}
+.rec .rh{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.rec .rt{font-weight:700;font-size:12.5px;line-height:1.25}
+.pri{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:5px;margin-left:auto;flex:0 0 auto}
+.pri.high{background:var(--bad-bg);color:var(--bad)} .pri.med{background:var(--warn-bg);color:var(--warn)} .pri.watch{background:var(--accent-soft);color:var(--accent-ink)}
+.rec .rb{font-size:11.6px;color:var(--muted);line-height:1.5}.rec .rb b{color:var(--ink);font-weight:600}
+
+.foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}
+.connect{display:flex;flex-wrap:wrap;gap:8px 18px;margin-bottom:16px}
+.connect a{font-size:12px;color:var(--accent-ink);text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.connect a:hover{color:var(--accent);text-decoration:underline}
+.connect a::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.disc{font-size:11.5px;color:var(--faint);line-height:1.6;border-top:1px solid var(--line2);padding-top:14px}
+.disc .sig{display:block;margin-top:8px;color:var(--muted);font-weight:700}.disc .sig span{display:block;font-weight:400;color:var(--faint);margin-top:2px}
+.disc .src{display:block;margin-top:10px}
+
+.stack{height:11px;border-radius:6px;overflow:hidden;display:flex;margin:4px 0 12px}
+.bdrow{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;border-top:1px solid var(--line2)}
+.bdrow:first-child{border-top:0}.bdrow span{color:var(--muted)}.bdrow b{font-variant-numeric:tabular-nums;font-weight:700}
+.bdrow.neg b{color:var(--muted);font-weight:600}.bdrow.tot b{color:var(--accent-ink)}
+.cityrow{display:grid;grid-template-columns:110px 1fr auto;gap:12px;align-items:center;padding:6px 0}
+.cityrow+.cityrow{border-top:1px solid var(--line2)}
+.cityrow .cn{font-size:12.5px;font-weight:600}
+.cbar{height:8px;border-radius:4px;background:var(--track);overflow:hidden}.cbar i{display:block;height:100%;background:var(--c1);border-radius:4px}
+.cityrow .cv{font-size:12.5px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}.cityrow .cv small{display:block;color:var(--faint);font-weight:400;font-size:10.5px}
+.citynote{font-size:11px;color:var(--faint);margin-top:12px;line-height:1.55}.citynote b{color:var(--muted);font-weight:600}
+.kstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:14px}
+.kpi{padding:15px 17px}
+.kpi .kl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.kpi .kv{font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:8px;font-variant-numeric:tabular-nums}
+.kpi .ks{font-size:12px;color:var(--faint);margin-top:8px}
+.barrow{display:grid;grid-template-columns:150px 1fr auto;gap:16px;align-items:center;padding:11px 0}
+.barrow+.barrow{border-top:1px solid var(--line2)}
+.barrow .bl{font-size:13.5px;font-weight:600}.barrow .bl small{display:block;color:var(--faint);font-weight:400;font-size:11.5px;margin-top:2px}
+.hbar{height:22px;border-radius:6px;min-width:6px}
+.barrow .bv{text-align:right;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}.barrow .bv small{display:block;color:var(--faint);font-weight:500;font-size:11px;margin-top:2px}
+.tag{font-size:9px;padding:1px 6px;border-radius:5px;background:var(--accent-soft);color:var(--accent-ink);font-weight:700;letter-spacing:.03em;margin-left:8px;vertical-align:middle}
+.tag.bundle{background:var(--line2);color:var(--muted)}
+.sharebar{height:7px;width:64px;border-radius:4px;background:var(--track);overflow:hidden;display:inline-block;vertical-align:middle}.sharebar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.pscroll{max-height:360px;overflow-y:auto}.pscroll::-webkit-scrollbar{width:7px}.pscroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+.pace-big{padding:2px 0}
+.pace-big .pl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:600}
+.pace-big .pv{font-size:30px;font-weight:800;letter-spacing:-.03em;margin:5px 0 4px;font-variant-numeric:tabular-nums}
+.pace-big .ps{font-size:12.5px;color:var(--muted)}.pace-big .ps b{font-weight:700}
+.pace-proj{border-top:1px solid var(--line2);margin-top:14px;padding-top:14px}
+.mbars{display:flex;align-items:flex-end;gap:10px;height:128px;margin-top:14px}
+.mbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%}
+.mbar .col{width:100%;max-width:44px;background:var(--accent);border-radius:6px 6px 0 0;min-height:3px}
+.mbar.part .col{background:repeating-linear-gradient(135deg,var(--c3),var(--c3) 5px,#F4E3C2 5px,#F4E3C2 9px)}
+.mbar .ml{font-size:11px;color:var(--muted)}.mbar .mv{font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+@media(max-width:1040px){.layout{grid-template-columns:1fr}.rail{position:static;max-height:none;overflow:visible}}
+@media(max-width:640px){.hero{grid-template-columns:1fr}.goals{border-left:0;padding-left:0;border-top:1px solid var(--line2);padding-top:14px}}
+@media print{.topact,.rail{position:static}.btn{display:none}}
+</style>
+
+<div id="gate">
+  <form class="gatecard" id="gateform">
+    <img class="glogo" src="https://techbayleaf.com/wp-content/uploads/2024/02/tech-bayleaf-logo-dark-01.svg" alt="Tech Bay Leaf" onerror="this.style.display='none'">
+    <div class="aria">ARIA</div><div class="by">by Tech Bay Leaf</div>
+    <div class="gsub">Client analytics portal · please sign in to continue</div>
+    <label for="gu">Username</label><input id="gu" type="text" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <label for="gp">Password</label><input id="gp" type="password" autocomplete="current-password">
+    <button type="submit">Sign in</button><div class="gerr" id="gerr"></div>
+    <div class="gfoot">Amar Chitra Katha · Performance Monitor<br>For authorised client use only</div>
+  </form>
+</div>
+
+<div id="app" hidden>
+<div class="wrap">
+  <div class="brandbar">
+    <img class="logo" src="https://techbayleaf.com/wp-content/uploads/2024/02/tech-bayleaf-logo-dark-01.svg" alt="Tech Bay Leaf" onerror="this.style.display='none'">
+    <div class="bdiv"></div>
+    <div class="aria">ARIA<small>Reporting Intelligence</small></div>
+    <div class="topact"><button class="btn" id="exportbtn" type="button">⭳ Export</button><button class="btn" id="signout" type="button">Sign out</button></div>
+  </div>
+  <div class="masthead">
+    <div><div class="eyebrow">Amar Chitra Katha · Shopify</div><h1>Performance Monitor</h1><p class="sub" id="subline"></p></div>
+    <div class="status-line" id="statusline"></div>
+  </div>
+
+  <div class="layout">
+    <!-- MAIN SCROLL -->
+    <div class="main">
+      <div class="slab">Overview</div>
+      <div class="grid kstrip" id="kstrip"></div>
+      <div class="card">
+        <div class="card-h"><div><h3>Revenue</h3><div class="hint" id="herohint"></div></div>
+          <div class="seg" id="heroseg"><button data-m="day" aria-pressed="false">Day</button><button data-m="week" aria-pressed="true">Week</button><button data-m="month" aria-pressed="false">Month</button></div></div>
+        <div class="hchart"><div class="tip" id="tip"></div><div id="herochart"></div></div>
+      </div>
+      <div class="grid g-2">
+        <div class="card"><div class="card-h"><div><h3>Sales by channel</h3><div class="hint">90 days · where orders are placed</div></div></div><div id="chanbars"></div></div>
+        <div class="card"><div class="card-h"><div><h3>New vs returning customers</h3><div class="hint">90 days · by revenue</div></div></div><div id="custbars"></div></div>
+      </div>
+      <div class="grid g-3" id="statcards"></div>
+      <div class="grid g-2">
+        <div class="card"><div class="card-h"><h3>Sales breakdown</h3><span class="hint">90 days</span></div><div id="salesbd"></div></div>
+        <div class="card"><div class="card-h"><h3>Product mix</h3><span class="hint">90 days · title-wise sales</span></div><div class="donut-wrap"><div class="donut" id="pdonut"></div><div class="dlegend" id="pdlegend"></div></div></div>
+      </div>
+
+      <div class="slab">Pacing</div>
+      <div class="grid g-2">
+        <div class="card"><div class="card-h"><div><h3>September, month to date</h3><div class="hint" id="mtd-sub"></div></div></div>
+          <div class="pace-big" id="mtd-block"></div>
+          <div class="pace-big pace-proj" id="proj-block"></div></div>
+        <div class="card"><div class="card-h"><div><h3>Monthly revenue</h3><div class="hint">2026 · by month (Sept partial)</div></div></div><div class="mbars" id="mbars"></div></div>
+      </div>
+
+      <div class="slab">Trends</div>
+      <div class="card">
+        <div class="card-h"><div><h3>Daily revenue</h3><div class="hint" id="trendhint"></div></div>
+          <div class="seg" id="rangeseg"><button data-r="30" aria-pressed="false">30d</button><button data-r="90" aria-pressed="true">90d</button><button data-r="all" aria-pressed="false">All</button></div></div>
+        <div class="hchart"><div class="tip" id="tip2"></div><div id="linechart"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><h3>Last 14 days</h3><div class="hint">Shaded against the 14-day range.</div></div>
+          <div class="seg" id="heatseg"><button data-m="rev" aria-pressed="true">Revenue</button><button data-m="ord" aria-pressed="false">Orders</button><button data-m="aov" aria-pressed="false">AOV</button></div></div>
+        <div class="heat" id="heat"></div><div class="legend"><span id="leglo"></span><span class="legbar"></span><span id="leghi"></span></div>
+      </div>
+
+      <div class="slab">Breakdown</div>
+      <div class="card"><div class="card-h"><div><h3>Top products</h3><div class="hint">90 days · title-wise sales, units &amp; share</div></div></div><div class="pscroll tblwrap"><table class="dt" id="ptable2"></table></div></div>
+      <div class="card"><div class="card-h"><div><h3>Top cities</h3><div class="hint">Where orders shipped · 90 days</div></div></div><div id="citiesw"></div></div>
+      <div class="card"><div class="card-h"><h3>Monthly performance</h3><span class="hint">2026 vs 2025</span></div><div class="tblwrap"><table class="dt" id="monthtable"></table></div></div>
+      <div class="grid cmp" id="cmp"></div>
+      <div class="card"><div class="card-h"><div><h3>Monthly revenue — this year vs last year</h3><div class="hint">Same month, 2025 vs 2026. Sept partial.</div></div></div>
+        <div class="hchart"><div id="yoychart"></div></div>
+        <div class="legrow"><span><span class="sw" style="background:#C3CCDC"></span>2025</span><span><span class="sw" style="background:var(--accent)"></span>2026</span></div></div>
+    </div>
+
+    <!-- INSIGHT RAIL -->
+    <aside class="rail">
+      <div class="railhead"><h2>ARIA Insights</h2><span class="badge">AUTO</span></div>
+      <div class="rcard"><h3>Highlights</h3><div class="rsub">Read of the last 7–90 days</div><div id="hl-list"></div></div>
+      <div class="rcard"><h3>Diagnosis</h3><div class="rsub">What the numbers are telling us</div><div id="findings"></div></div>
+      <div class="rcard"><h3>Recommendations</h3><div class="rsub">Where leadership should focus</div><div id="recs"></div></div>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <div class="connect">
+      <a href="https://techbayleaf.com/" target="_blank" rel="noopener">Tech Bay Leaf</a>
+      <a href="https://tblconnext.com/" target="_blank" rel="noopener">TBL Connext</a>
+      <a href="https://www.linkedin.com/company/bay-leaf-integrated-communication-solutions/" target="_blank" rel="noopener">LinkedIn</a>
+      <a href="https://www.instagram.com/techbayleaf/" target="_blank" rel="noopener">Instagram · Tech Bay Leaf</a>
+      <a href="https://www.instagram.com/tblconnext/" target="_blank" rel="noopener">Instagram · TBL Connext</a>
+      <a href="http://www.youtube.com/@TechBayLeaf" target="_blank" rel="noopener">YouTube</a>
+      <a href="https://www.linkedin.com/in/therahulkatyayani/" target="_blank" rel="noopener">Rahul Katyayani</a>
+    </div>
+    <div class="disc">Data refreshes approximately every 24 hours and may show minor discrepancies with the live platform. For real-time figures, please verify directly in Shopify.
+      <span class="sig">Prepared by Tech Bay Leaf · Powered by ARIA<span>© 2026 Tech Bay Leaf. For client use only</span></span>
+      <span class="src">Source: Supermetrics · Shopify (store “Amar Chitra Katha”). “Total sales” = gross − discounts − returns + shipping/tax. COGS is not populated in Shopify for most orders, so margin is omitted. Once Google Ads is connected, spend, CPA &amp; blended ROAS will be added.</span>
+    </div>
+  </footer>
+</div>
+</div>
+
+<script>const DATA={"daily": [{"d": "2026-03-01", "rev": 83605.0, "ord": 14, "aov": 5932.02, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-02", "rev": 77570.0, "ord": 13, "aov": 5917.85, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-03", "rev": 30800.0, "ord": 10, "aov": 3023.85, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-04", "rev": 96225.0, "ord": 14, "aov": 6835.48, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-05", "rev": 53539.4, "ord": 12, "aov": 4403.95, "disc": 732.93, "ret": 0.0}, {"d": "2026-03-06", "rev": 25534.0, "ord": 5, "aov": 4965.27, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-07", "rev": 41537.0, "ord": 12, "aov": 3408.18, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-08", "rev": 48058.0, "ord": 15, "aov": 3160.73, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-09", "rev": 79064.8, "ord": 10, "aov": 7884.12, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-10", "rev": 48004.0, "ord": 7, "aov": 6842.76, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-11", "rev": 87988.0, "ord": 19, "aov": 4673.34, "disc": 299.0, "ret": 999.0}, {"d": "2026-03-12", "rev": 117292.0, "ord": 17, "aov": 6857.97, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-13", "rev": 84182.0, "ord": 12, "aov": 6981.06, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-14", "rev": 42708.0, "ord": 13, "aov": 3237.08, "disc": 599.0, "ret": 0.0}, {"d": "2026-03-15", "rev": 46577.0, "ord": 14, "aov": 3263.2, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-16", "rev": 93999.0, "ord": 20, "aov": 4648.0, "disc": 186.04, "ret": 0.0}, {"d": "2026-03-17", "rev": 21027.0, "ord": 6, "aov": 3475.44, "disc": 176.0, "ret": 0.0}, {"d": "2026-03-18", "rev": 64555.0, "ord": 17, "aov": 3773.28, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-19", "rev": 24571.0, "ord": 10, "aov": 2398.31, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-20", "rev": 36316.0, "ord": 7, "aov": 5124.42, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-21", "rev": 75715.0, "ord": 19, "aov": 3957.95, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-22", "rev": 47710.0, "ord": 19, "aov": 2465.85, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-23", "rev": 80082.0, "ord": 18, "aov": 4427.06, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-24", "rev": 38982.0, "ord": 17, "aov": 2235.84, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-25", "rev": 75544.0, "ord": 19, "aov": 3930.69, "disc": 510.0, "ret": 0.0}, {"d": "2026-03-26", "rev": 29743.0, "ord": 14, "aov": 2065.89, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-27", "rev": 55524.0, "ord": 15, "aov": 3643.93, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-28", "rev": 17858.0, "ord": 12, "aov": 1438.55, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-29", "rev": 42408.0, "ord": 17, "aov": 2452.15, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-30", "rev": 108201.5, "ord": 30, "aov": 3590.12, "disc": 0.0, "ret": 0.0}, {"d": "2026-03-31", "rev": 76928.0, "ord": 20, "aov": 3815.65, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-01", "rev": 52153.0, "ord": 18, "aov": 2849.01, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-02", "rev": 15864.0, "ord": 9, "aov": 1673.54, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-03", "rev": 33214.0, "ord": 13, "aov": 2476.99, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-04", "rev": 65274.0, "ord": 14, "aov": 4626.73, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-05", "rev": 35865.0, "ord": 17, "aov": 2063.03, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-06", "rev": 89997.0, "ord": 22, "aov": 4004.67, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-07", "rev": 83016.0, "ord": 23, "aov": 3572.89, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-08", "rev": 74235.0, "ord": 25, "aov": 2936.77, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-09", "rev": 59272.0, "ord": 19, "aov": 3095.13, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-10", "rev": 76496.0, "ord": 25, "aov": 3024.74, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-11", "rev": 62539.0, "ord": 23, "aov": 2680.28, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-12", "rev": 149201.0, "ord": 27, "aov": 5488.64, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-13", "rev": 64762.0, "ord": 18, "aov": 3555.31, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-14", "rev": 41901.6, "ord": 15, "aov": 2756.89, "disc": 200.4, "ret": 0.0}, {"d": "2026-04-15", "rev": 57038.0, "ord": 20, "aov": 2805.19, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-16", "rev": 48782.0, "ord": 16, "aov": 3021.43, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-17", "rev": 73959.0, "ord": 19, "aov": 3835.59, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-18", "rev": 37377.0, "ord": 11, "aov": 3294.34, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-19", "rev": 46951.6, "ord": 16, "aov": 2872.74, "disc": 200.4, "ret": 0.0}, {"d": "2026-04-20", "rev": 27943.0, "ord": 6, "aov": 4624.04, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-21", "rev": 45140.0, "ord": 21, "aov": 2100.47, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-22", "rev": 52065.0, "ord": 14, "aov": 3881.96, "disc": 0.0, "ret": 2459.95}, {"d": "2026-04-23", "rev": 77308.0, "ord": 16, "aov": 4865.35, "disc": 748.8, "ret": 2047.0}, {"d": "2026-04-24", "rev": 40721.0, "ord": 14, "aov": 2897.93, "disc": 186.04, "ret": 0.0}, {"d": "2026-04-25", "rev": 51665.0, "ord": 18, "aov": 2840.18, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-26", "rev": 31294.0, "ord": 12, "aov": 2559.24, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-27", "rev": 96875.0, "ord": 27, "aov": 3547.18, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-28", "rev": 90768.0, "ord": 31, "aov": 2889.44, "disc": 0.0, "ret": 0.0}, {"d": "2026-04-29", "rev": 48023.0, "ord": 24, "aov": 1980.71, "disc": 0.0, "ret": 499.0}, {"d": "2026-04-30", "rev": 63878.0, "ord": 27, "aov": 2313.6, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-01", "rev": 102583.0, "ord": 25, "aov": 4077.37, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-02", "rev": 60319.0, "ord": 35, "aov": 1672.81, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-03", "rev": 85551.0, "ord": 30, "aov": 2815.65, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-04", "rev": 43621.0, "ord": 17, "aov": 2462.3, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-05", "rev": 96402.0, "ord": 31, "aov": 3082.6, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-06", "rev": 80398.0, "ord": 47, "aov": 1692.49, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-07", "rev": 127115.0, "ord": 52, "aov": 2418.11, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-08", "rev": 68686.0, "ord": 32, "aov": 2136.3, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-09", "rev": 107207.0, "ord": 49, "aov": 2169.93, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-10", "rev": 62422.0, "ord": 24, "aov": 2539.68, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-11", "rev": 86934.0, "ord": 40, "aov": 2149.17, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-12", "rev": 90972.0, "ord": 35, "aov": 2620.48, "disc": 0.0, "ret": 1699.0}, {"d": "2026-05-13", "rev": 66265.0, "ord": 38, "aov": 1719.86, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-14", "rev": 61380.0, "ord": 36, "aov": 1668.74, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-15", "rev": 60844.0, "ord": 43, "aov": 1419.14, "disc": 0.0, "ret": 1522.86}, {"d": "2026-05-16", "rev": 144764.0, "ord": 44, "aov": 3244.33, "disc": 234.0, "ret": 0.0}, {"d": "2026-05-17", "rev": 69541.8, "ord": 34, "aov": 2000.5, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-18", "rev": 76572.0, "ord": 44, "aov": 1790.08, "disc": 568.57, "ret": 3234.0}, {"d": "2026-05-19", "rev": 125905.0, "ord": 58, "aov": 2135.84, "disc": 0.0, "ret": 951.43}, {"d": "2026-05-20", "rev": 81550.0, "ord": 37, "aov": 2178.48, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-21", "rev": 90844.0, "ord": 43, "aov": 2088.61, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-22", "rev": 32605.0, "ord": 20, "aov": 1599.97, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-23", "rev": 87827.0, "ord": 39, "aov": 2208.23, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-24", "rev": 84638.0, "ord": 33, "aov": 2524.05, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-25", "rev": 55792.0, "ord": 32, "aov": 1704.96, "disc": 1599.0, "ret": 0.0}, {"d": "2026-05-26", "rev": 79148.0, "ord": 36, "aov": 2156.34, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-27", "rev": 115837.0, "ord": 40, "aov": 2894.69, "disc": 0.0, "ret": 1699.0}, {"d": "2026-05-28", "rev": 86846.0, "ord": 41, "aov": 2072.57, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-29", "rev": 99053.0, "ord": 37, "aov": 2666.43, "disc": 372.09, "ret": 979.97}, {"d": "2026-05-30", "rev": 72331.0, "ord": 32, "aov": 2213.96, "disc": 0.0, "ret": 0.0}, {"d": "2026-05-31", "rev": 115564.0, "ord": 39, "aov": 2924.89, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-01", "rev": 78856.0, "ord": 36, "aov": 2149.54, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-02", "rev": 83735.4, "ord": 35, "aov": 2364.02, "disc": 165.2, "ret": 0.0}, {"d": "2026-06-03", "rev": 91511.7, "ord": 39, "aov": 2301.97, "disc": 635.6, "ret": 0.0}, {"d": "2026-06-04", "rev": 79216.0, "ord": 37, "aov": 2094.78, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-05", "rev": 165975.0, "ord": 48, "aov": 3419.46, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-06", "rev": 50695.0, "ord": 27, "aov": 1837.48, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-07", "rev": 102097.0, "ord": 47, "aov": 2126.0, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-08", "rev": 96427.1, "ord": 45, "aov": 2062.1, "disc": 744.09, "ret": 0.0}, {"d": "2026-06-09", "rev": 78190.0, "ord": 42, "aov": 1869.07, "disc": 0.0, "ret": 2499.0}, {"d": "2026-06-10", "rev": 43770.0, "ord": 37, "aov": 1127.97, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-11", "rev": 75820.0, "ord": 46, "aov": 1609.34, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-12", "rev": 40893.0, "ord": 29, "aov": 1373.9, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-13", "rev": 59991.0, "ord": 35, "aov": 1675.74, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-14", "rev": 38755.0, "ord": 31, "aov": 1209.74, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-15", "rev": 74300.5, "ord": 40, "aov": 1803.83, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-16", "rev": 53423.5, "ord": 38, "aov": 1371.61, "disc": 11116.85, "ret": 0.0}, {"d": "2026-06-17", "rev": 51234.0, "ord": 27, "aov": 1872.74, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-18", "rev": 92197.0, "ord": 28, "aov": 3270.0, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-19", "rev": 63390.0, "ord": 35, "aov": 1757.58, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-20", "rev": 38292.0, "ord": 25, "aov": 1496.27, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-21", "rev": 49659.0, "ord": 28, "aov": 1716.67, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-22", "rev": 39119.0, "ord": 31, "aov": 1231.56, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-23", "rev": 60549.0, "ord": 34, "aov": 1729.64, "disc": 380.95, "ret": 0.0}, {"d": "2026-06-24", "rev": 31814.0, "ord": 25, "aov": 1234.76, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-25", "rev": 90691.0, "ord": 39, "aov": 2287.68, "disc": 0.0, "ret": 951.42}, {"d": "2026-06-26", "rev": 48332.0, "ord": 28, "aov": 1665.42, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-27", "rev": 57274.5, "ord": 27, "aov": 2071.04, "disc": 1245.23, "ret": 0.0}, {"d": "2026-06-28", "rev": 35101.0, "ord": 22, "aov": 1541.04, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-29", "rev": 44846.0, "ord": 35, "aov": 1230.0, "disc": 0.0, "ret": 0.0}, {"d": "2026-06-30", "rev": 64357.0, "ord": 34, "aov": 1847.11, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-01", "rev": 41579.0, "ord": 28, "aov": 1436.02, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-02", "rev": 82848.0, "ord": 40, "aov": 2027.63, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-03", "rev": 59430.0, "ord": 29, "aov": 1998.37, "disc": 325.56, "ret": 0.0}, {"d": "2026-07-04", "rev": 68025.0, "ord": 30, "aov": 2206.96, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-05", "rev": 67755.0, "ord": 42, "aov": 1575.3, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-06", "rev": 42582.0, "ord": 29, "aov": 1420.36, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-07", "rev": 21826.0, "ord": 19, "aov": 1104.53, "disc": 333.32, "ret": 0.0}, {"d": "2026-07-08", "rev": 119678.0, "ord": 36, "aov": 3287.38, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-09", "rev": 104179.0, "ord": 31, "aov": 3330.62, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-10", "rev": 34189.0, "ord": 21, "aov": 1601.71, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-11", "rev": 282917.0, "ord": 25, "aov": 11257.9, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-12", "rev": 44227.0, "ord": 25, "aov": 1751.95, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-13", "rev": 189392.0, "ord": 17, "aov": 10835.5, "disc": 0.0, "ret": 2497.1}, {"d": "2026-07-14", "rev": 40354.0, "ord": 24, "aov": 1658.87, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-15", "rev": 455381.0, "ord": 39, "aov": 11637.72, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-16", "rev": 63040.0, "ord": 30, "aov": 2076.08, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-17", "rev": 52680.0, "ord": 37, "aov": 1400.04, "disc": 333.32, "ret": 0.0}, {"d": "2026-07-18", "rev": 37112.0, "ord": 25, "aov": 1454.92, "disc": 333.32, "ret": 0.0}, {"d": "2026-07-19", "rev": 36492.0, "ord": 15, "aov": 2392.6, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-20", "rev": 26708.0, "ord": 20, "aov": 1305.13, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-21", "rev": 28870.2, "ord": 23, "aov": 1205.61, "disc": 179.8, "ret": 0.0}, {"d": "2026-07-22", "rev": 36752.0, "ord": 24, "aov": 1507.24, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-23", "rev": 32817.0, "ord": 20, "aov": 1591.96, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-24", "rev": 166959.0, "ord": 22, "aov": 7568.23, "disc": 80990.0, "ret": 0.0}, {"d": "2026-07-25", "rev": 13661.0, "ord": 13, "aov": 987.78, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-26", "rev": 41504.0, "ord": 21, "aov": 1924.22, "disc": 325.58, "ret": 0.0}, {"d": "2026-07-27", "rev": 34133.0, "ord": 21, "aov": 1613.2, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-28", "rev": 46132.0, "ord": 21, "aov": 2139.81, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-29", "rev": 41538.0, "ord": 20, "aov": 2022.87, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-30", "rev": 32348.0, "ord": 26, "aov": 1197.74, "disc": 0.0, "ret": 0.0}, {"d": "2026-07-31", "rev": 44118.0, "ord": 27, "aov": 1591.06, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-01", "rev": 47476.0, "ord": 30, "aov": 1549.54, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-02", "rev": 23351.0, "ord": 20, "aov": 1135.54, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-03", "rev": 49638.0, "ord": 22, "aov": 2202.46, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-04", "rev": 45173.0, "ord": 22, "aov": 2028.32, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-05", "rev": 33044.0, "ord": 25, "aov": 1273.99, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-06", "rev": 26128.0, "ord": 18, "aov": 1418.56, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-07", "rev": 30885.7, "ord": 26, "aov": 1149.26, "disc": 234.54, "ret": 0.0}, {"d": "2026-08-08", "rev": 31803.0, "ord": 26, "aov": 1193.9, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-09", "rev": 51020.3, "ord": 24, "aov": 2079.03, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-10", "rev": 16800.0, "ord": 14, "aov": 1152.82, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-11", "rev": 42093.0, "ord": 31, "aov": 1336.57, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-12", "rev": 57373.0, "ord": 46, "aov": 1204.79, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-13", "rev": 38446.0, "ord": 18, "aov": 2085.47, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-14", "rev": 21444.0, "ord": 24, "aov": 913.85, "disc": 0.0, "ret": 1473.24}, {"d": "2026-08-15", "rev": 20476.0, "ord": 15, "aov": 1344.27, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-16", "rev": 28244.0, "ord": 29, "aov": 933.51, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-17", "rev": 25606.0, "ord": 24, "aov": 1071.34, "disc": 0.0, "ret": 549.0}, {"d": "2026-08-18", "rev": 32360.0, "ord": 22, "aov": 1436.62, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-19", "rev": 42549.0, "ord": 28, "aov": 1498.91, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-20", "rev": 59649.0, "ord": 54, "aov": 1096.46, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-21", "rev": 85184.0, "ord": 82, "aov": 1057.29, "disc": 0.0, "ret": 2199.0}, {"d": "2026-08-22", "rev": 87827.0, "ord": 64, "aov": 1361.22, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-23", "rev": 85235.0, "ord": 70, "aov": 1203.97, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-24", "rev": 45795.0, "ord": 35, "aov": 1297.24, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-25", "rev": 36071.0, "ord": 30, "aov": 1190.43, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-26", "rev": 34205.0, "ord": 31, "aov": 1133.78, "disc": 0.0, "ret": 1699.0}, {"d": "2026-08-27", "rev": 40166.0, "ord": 25, "aov": 1580.31, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-28", "rev": 58740.0, "ord": 40, "aov": 1453.12, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-29", "rev": 50221.25, "ord": 33, "aov": 1497.02, "disc": 190.47, "ret": 0.0}, {"d": "2026-08-30", "rev": 34933.0, "ord": 24, "aov": 1428.23, "disc": 0.0, "ret": 0.0}, {"d": "2026-08-31", "rev": 34007.0, "ord": 29, "aov": 1151.24, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-01", "rev": 37327.0, "ord": 34, "aov": 1066.98, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-02", "rev": 67311.0, "ord": 35, "aov": 1891.29, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-03", "rev": 53695.0, "ord": 28, "aov": 1884.07, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-04", "rev": 25080.0, "ord": 20, "aov": 1239.97, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-05", "rev": 33423.0, "ord": 25, "aov": 1306.76, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-06", "rev": 24801.1, "ord": 24, "aov": 1018.2, "disc": 209.42, "ret": 0.0}, {"d": "2026-09-07", "rev": 29852.0, "ord": 24, "aov": 1261.77, "disc": 0.0, "ret": 999.0}, {"d": "2026-09-08", "rev": 49947.7, "ord": 16, "aov": 3093.04, "disc": 82.3, "ret": 0.0}, {"d": "2026-09-09", "rev": 26471.4, "ord": 22, "aov": 1191.78, "disc": 190.08, "ret": 0.0}, {"d": "2026-09-10", "rev": 24188.0, "ord": 15, "aov": 1563.52, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-11", "rev": 21273.0, "ord": 15, "aov": 1404.64, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-12", "rev": 9937.0, "ord": 8, "aov": 1217.88, "disc": 0.0, "ret": 0.0}, {"d": "2026-09-13", "rev": 38049.1, "ord": 23, "aov": 1642.97, "disc": 169.9, "ret": 0.0}], "summary": {"currency": "INR", "store": "Amar Chitra Katha", "date_start": "2026-03-01", "date_end": "2026-09-13", "b7": {"rev": 199718.2, "orders": 123.0, "aov": 1623.7252032520325, "disc": 442.28, "returns": 999.0}, "bp7": {"rev": 275644.1, "orders": 195.0, "aov": 1413.559487179487, "disc": 209.42, "returns": 0.0}, "b30": {"rev": 1242623.55, "orders": 924.0, "aov": 1344.8306818181818, "disc": 842.17, "returns": 5446.0}, "bp30": {"rev": 1249539.2, "orders": 711.0, "aov": 1757.439099859353, "disc": 82396.56, "returns": 1473.24}, "wow_rev": -27.54490301080269, "wow_orders": -36.92307692307693, "wow_aov": 14.867836690190863, "mom30_rev": -0.5534560260294281, "mom30_orders": 29.957805907172997, "sep_rev": 441355.3, "sep_orders": 289.0, "aug_rev": 1315943.25, "aug_orders": 981.0, "aug_same_rev": 493231.0, "mtd_pace_rev": -10.517526270652091, "proj_rev": 1018512.2307692308, "proj_orders": 666.9230769230769, "proj_vs_aug": -22.60211595224712, "best": {"date": "2026-08-22", "total_sales": 87827.0, "net_sales": 87118.09, "gross_sales": 87118.09, "discounts": 0.0, "returns": 0.0, "orders": 64.0, "aov": 1361.2202, "gross_profit": 79619.09, "cogs": 7499.0}, "worst": {"date": "2026-09-12", "total_sales": 9937.0, "net_sales": 9743.05, "gross_sales": 9743.05, "discounts": 0.0, "returns": 0.0, "orders": 8.0, "aov": 1217.8813, "gross_profit": 9743.05, "cogs": 0.0}, "ret_rate30": 0.44247457946573293, "months": {"2026-03": {"rev": 1851847.7000000002, "orders": 447.0}, "2026-04": {"rev": 1793577.2000000002, "orders": 560.0}, "2026-05": {"rev": 2619516.8, "orders": 1143.0}, "2026-06": {"rev": 1980511.7, "orders": 1030.0}, "2026-07": {"rev": 2389226.2, "orders": 800.0}, "2026-08": {"rev": 1315943.25, "orders": 981.0}, "2026-09": {"rev": 441355.3, "orders": 289.0}}}, "products": [{"title": "Tinkle magazine physical 1 year subscription", "sales": 414791.1, "qty": 189, "gp": 393518.74, "share": 8.4}, {"title": "Musicians of India: Ragas and Rhythms", "sales": 344540.0, "qty": 460, "gp": 343980.45, "share": 7.0}, {"title": "Best of Indian Mythology", "sales": 334950.0, "qty": 32, "gp": 334793.56, "share": 6.8}, {"title": "My First Learning Box Set (20 Board Books)", "sales": 327907.0, "qty": 193, "gp": 327778.33, "share": 6.6}, {"title": "Bhagavad Gita (Hardbound)", "sales": 249052.48, "qty": 312, "gp": 238286.11, "share": 5.0}, {"title": "Mahabharata - 3 Volume Set", "sales": 248331.0, "qty": 69, "gp": 247881.37, "share": 5.0}, {"title": "Valmiki's Ramayana - Red Special Edition", "sales": 197274.0, "qty": 61, "gp": 197032.51, "share": 4.0}, {"title": "My First Learning (First Words Set - Pack of 10)", "sales": 171828.0, "qty": 172, "gp": 171812.15, "share": 3.5}, {"title": "Indian Itihas Collection \u2013 Rich stories from Indian Mythology", "sales": 146166.0, "qty": 34, "gp": 146166.0, "share": 3.0}, {"title": "Tinkle Double Digest Annual Subscription", "sales": 144942.0, "qty": 58, "gp": 144386.51, "share": 2.9}, {"title": "The Ultimate Collection - 200+ Titles", "sales": 144000.0, "qty": 10, "gp": 144000.0, "share": 2.9}, {"title": "Amar Chitra Katha Assorted PACK OF 20", "sales": 131934.0, "qty": 66, "gp": 131912.88, "share": 2.7}, {"title": "My First Learning (Little Learners Set - Pack of 10)", "sales": 96903.0, "qty": 97, "gp": 96878.76, "share": 2.0}, {"title": "Bravehearts pack of 25 - (Assorted)", "sales": 90068.0, "qty": 44, "gp": 90043.6, "share": 1.8}, {"title": "Epics & Mythology pack of 25 - (Assorted)", "sales": 88021.0, "qty": 43, "gp": 87981.94, "share": 1.8}, {"title": "Tales Of Humour", "sales": 87037.55, "qty": 175, "gp": 86446.82, "share": 1.8}, {"title": "Visionary Pack of 25 (Assorted)", "sales": 77850.0, "qty": 45, "gp": 77824.79, "share": 1.6}, {"title": "Jataka, Panchatantra and Hitopadesha Collection", "sales": 74414.4, "qty": 42, "gp": 74268.23, "share": 1.5}, {"title": "My First Learning (Yellow Set - Pack of 5)", "sales": 66978.0, "qty": 122, "gp": 66978.0, "share": 1.4}, {"title": "Amar Chitra Katha Assorted PACK OF 30", "sales": 64878.0, "qty": 22, "gp": 64850.63, "share": 1.3}], "channels": [{"name": "Shopflo checkout", "sales": 3686945.75, "orders": 2426}, {"name": "Draft orders (bulk/B2B)", "sales": 1056755.0, "orders": 7}, {"name": "Online Store", "sales": 124116.0, "orders": 83}, {"name": "orders-up", "sales": 79406.0, "orders": 8}], "customers": [{"type": "New", "sales": 4577790.65, "orders": 2297}, {"type": "Returning", "sales": 369432.1, "orders": 227}], "total90": 4947222.75, "monthly": [{"y": 2024, "m": 9, "rev": 1402941.5, "ord": 345, "aov": 4066.0}, {"y": 2024, "m": 10, "rev": 297249.17, "ord": 156, "aov": 1905.0}, {"y": 2024, "m": 11, "rev": 420682.41, "ord": 141, "aov": 2984.0}, {"y": 2024, "m": 12, "rev": 967157.57, "ord": 366, "aov": 2643.0}, {"y": 2025, "m": 1, "rev": 1662756.8, "ord": 435, "aov": 3822.0}, {"y": 2025, "m": 2, "rev": 2128165.92, "ord": 440, "aov": 4837.0}, {"y": 2025, "m": 3, "rev": 1792040.95, "ord": 404, "aov": 4436.0}, {"y": 2025, "m": 4, "rev": 1715515.05, "ord": 476, "aov": 3604.0}, {"y": 2025, "m": 5, "rev": 2156715.26, "ord": 1779, "aov": 1212.0}, {"y": 2025, "m": 6, "rev": 1474956.0, "ord": 605, "aov": 2438.0}, {"y": 2025, "m": 7, "rev": 2457318.0, "ord": 586, "aov": 4193.0}, {"y": 2025, "m": 8, "rev": 2443541.4, "ord": 1265, "aov": 1932.0}, {"y": 2025, "m": 9, "rev": 2162767.55, "ord": 471, "aov": 4592.0}, {"y": 2025, "m": 10, "rev": 1399813.0, "ord": 214, "aov": 6541.0}, {"y": 2025, "m": 11, "rev": 1231859.2, "ord": 208, "aov": 5922.0}, {"y": 2025, "m": 12, "rev": 1987998.6, "ord": 410, "aov": 4849.0}, {"y": 2026, "m": 1, "rev": 1899682.9, "ord": 372, "aov": 5107.0}, {"y": 2026, "m": 2, "rev": 2042265.5, "ord": 388, "aov": 5264.0}, {"y": 2026, "m": 3, "rev": 1851847.7, "ord": 447, "aov": 4143.0}, {"y": 2026, "m": 4, "rev": 1793577.2, "ord": 560, "aov": 3203.0}, {"y": 2026, "m": 5, "rev": 2619516.8, "ord": 1143, "aov": 2292.0}, {"y": 2026, "m": 6, "rev": 1980511.7, "ord": 1030, "aov": 1923.0}, {"y": 2026, "m": 7, "rev": 2389226.2, "ord": 800, "aov": 2987.0}, {"y": 2026, "m": 8, "rev": 1315943.25, "ord": 981, "aov": 1341.0}, {"y": 2026, "m": 9, "rev": 441355.3, "ord": 289, "aov": 1527.0}], "yoy": [{"m": 1, "rev26": 1899682.9, "rev25": 1662756.8, "pct": 14.2}, {"m": 2, "rev26": 2042265.5, "rev25": 2128165.92, "pct": -4.0}, {"m": 3, "rev26": 1851847.7, "rev25": 1792040.95, "pct": 3.3}, {"m": 4, "rev26": 1793577.2, "rev25": 1715515.05, "pct": 4.6}, {"m": 5, "rev26": 2619516.8, "rev25": 2156715.26, "pct": 21.5}, {"m": 6, "rev26": 1980511.7, "rev25": 1474956.0, "pct": 34.3}, {"m": 7, "rev26": 2389226.2, "rev25": 2457318.0, "pct": -2.8}, {"m": 8, "rev26": 1315943.25, "rev25": 2443541.4, "pct": -46.1}, {"m": 9, "rev26": 441355.3, "rev25": 2162767.55, "pct": -79.6}], "ym": {"aug_yoy": -46.1, "aug26": 1315943.25, "aug25": 2443541.4, "aug_aov26": 1341.0, "aug_aov25": 1932.0, "jul_yoy": -2.8, "jun_yoy": 34.3, "may_yoy": 21.5, "sep25": 2162767.55, "ytd26": 15892571.25, "ytd25": 15831009.38, "ytd_yoy": 0.4, "ytd_aov26": 2778, "ytd_aov25": 2643}, "cities": {"top": [{"name": "Bangalore", "sales": 547662.0, "orders": 361}, {"name": "Hyderabad", "sales": 346111.0, "orders": 182}, {"name": "Mumbai", "sales": 333247.0, "orders": 260}, {"name": "Chennai", "sales": 247757.0, "orders": 146}, {"name": "Delhi", "sales": 212577.0, "orders": 147}, {"name": "Pune", "sales": 154675.0, "orders": 110}, {"name": "Gurgaon", "sales": 102107.0, "orders": 72}, {"name": "Kolkata", "sales": 65810.0, "orders": 54}, {"name": "Coimbatore", "sales": 60177.0, "orders": 29}, {"name": "Ahmedabad", "sales": 52146.0, "orders": 39}], "othersSales": 1293944.0, "othersOrders": 740, "cityTotal": 3416213.0, "cityOrders": 2140, "unspecified": {"sales": 1142159.0, "orders": 17}}, "breakdown": {"b30": {"total": 1242623.55, "net": 1224517.0, "gross": 1230805.17, "disc": 842.17, "returns": 5446.0, "orders": 924}, "b90": {"total": 4966803.75, "net": 4876640.53, "gross": 4983648.93, "disc": 96640.64, "returns": 10367.76, "orders": 2526}}};</script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const D=DATA,S=D.summary,daily=D.daily,Y=D.ym,FONT="Plus Jakarta Sans";
+const CSSV=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const CH=['--c1','--c2','--c3','--c4','--c5','--c6'].map(CSSV);
+function inr(n){n=Math.round(n);let neg=n<0,s=String(Math.abs(n)),l3=s.slice(-3),r=s.slice(0,-3);if(r)l3=','+l3;r=r.replace(/\B(?=(\d{2})+(?!\d))/g,',');return (neg?'-':'')+'₹'+r+l3;}
+function lakh(n){let a=Math.abs(n);if(a>=1e7)return (n<0?'-':'')+'₹'+(a/1e7).toFixed(2)+' Cr';if(a>=1e5)return (n<0?'-':'')+'₹'+(a/1e5).toFixed(2)+' L';return inr(n);}
+function pctTxt(v){if(v==null)return '';return (v>=0?'+':'')+v.toFixed(1)+'%';}
+function delCls(v,gu=true){if(v==null||Math.abs(v)<1)return 'flat';return (v>0)===gu?'up':'down';}
+const MN=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(d){const[_,m,day]=d.split('-');return MN[+m]+' '+(+day);}
+const wowR=S.wow_rev,wowO=S.wow_orders,pace=S.proj_vs_aug;
+const repeatShare=D.customers[1].sales/(D.customers[0].sales+D.customers[1].sales)*100;
+
+$('#subline').innerHTML=`Refreshed <b>Sep 14, 2026</b> · Supermetrics → Shopify · window <b>Mar 1 – Sep 13, 2026</b> · INR (₹)`;
+const signals=[];
+if(wowR<-20)signals.push({t:'Revenue '+pctTxt(wowR)+' wk',c:'bad'});
+if(Y.aug_yoy<-20)signals.push({t:'Aug '+pctTxt(Y.aug_yoy)+' YoY',c:'bad'});
+if(pace<-15)signals.push({t:'Sept pacing '+pctTxt(pace),c:'warn'});
+let sl=`<span class="chip ${signals.length?'bad':'ok'}"><span class="dot"></span><b style="font-weight:700">${signals.length} flagged</b></span>`;
+signals.forEach(s=>sl+=`<span class="chip ${s.c}"><span class="dot"></span>${s.t}</span>`);
+sl+=`<span class="chip ghost"><span class="dot"></span>Google Ads — not yet connected</span>`;
+$('#statusline').innerHTML=sl;
+
+/* KPI strip */
+function drawKPIs(){const items=[
+ {l:'Revenue · 30d',v:lakh(S.b30.rev),d:S.mom30_rev,gu:true,s:'vs prior 30d'},
+ {l:'Orders · 30d',v:S.b30.orders.toLocaleString('en-IN'),d:S.mom30_orders,gu:true,s:'vs prior 30d'},
+ {l:'Avg order value · 30d',v:inr(S.b30.aov),d:(S.b30.aov-S.bp30.aov)/S.bp30.aov*100,gu:true,s:'vs prior 30d'},
+ {l:'This week · revenue',v:lakh(S.b7.rev),d:wowR,gu:true,s:'vs prior 7d'},
+ {l:'Returns rate · 30d',v:S.ret_rate30.toFixed(2)+'%',d:null,gu:false,s:'of net sales'},
+];
+$('#kstrip').innerHTML=items.map(k=>`<div class="card kpi"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.d!=null?`<span class="delta ${delCls(k.d,k.gu)}">${pctTxt(k.d)}</span> `:''}${k.s}</div></div>`).join('');}
+
+/* channel + customer bars */
+function drawChanBars(){const rows=[...D.channels].sort((a,b)=>b.sales-a.sales),mx=rows[0].sales,tot=rows.reduce((a,b)=>a+b.sales,0);
+  $('#chanbars').innerHTML=rows.map((c,i)=>`<div class="barrow"><div class="bl">${c.name}<small>${c.orders.toLocaleString('en-IN')} ord · ${inr(c.sales/c.orders)} AOV</small></div><div class="hbar" style="width:${Math.max(6,c.sales/mx*100)}%;background:${CH[i%CH.length]}"></div><div class="bv">${lakh(c.sales)}<small>${(c.sales/tot*100).toFixed(0)}%</small></div></div>`).join('');}
+function drawCustBars(){const rows=D.customers,mx=Math.max(...rows.map(r=>r.sales)),tot=rows.reduce((a,b)=>a+b.sales,0),cols=[CSSV('--c1'),CSSV('--c3')];
+  $('#custbars').innerHTML=rows.map((c,i)=>`<div class="barrow"><div class="bl">${c.type} customers<small>${c.orders.toLocaleString('en-IN')} ord · ${inr(c.sales/c.orders)} AOV</small></div><div class="hbar" style="width:${Math.max(6,c.sales/mx*100)}%;background:${cols[i]}"></div><div class="bv">${lakh(c.sales)}<small>${(c.sales/tot*100).toFixed(0)}%</small></div></div>`).join('');}
+
+/* pacing */
+function drawPacing(){$('#mtd-sub').textContent='Sept 1–13 · 13 of 30 days ('+Math.round(13/30*100)+'% elapsed)';
+  $('#mtd-block').innerHTML=`<div class="pv">${lakh(S.sep_rev)}</div><div class="ps">${S.sep_orders.toLocaleString('en-IN')} orders · <b class="delta ${delCls(S.mtd_pace_rev)}">${pctTxt(S.mtd_pace_rev)}</b> vs Aug 1–13</div>`;
+  $('#proj-block').innerHTML=`<div class="pl">Projected to end of month</div><div class="pv">${lakh(S.proj_rev)}</div><div class="ps">~${Math.round(S.proj_orders).toLocaleString('en-IN')} orders · <b class="delta ${delCls(S.proj_vs_aug)}">${pctTxt(S.proj_vs_aug)}</b> vs full August</div>`;
+  const ms=Object.keys(S.months).sort(),mx=Math.max(...ms.map(k=>S.months[k].rev));
+  $('#mbars').innerHTML=ms.map(k=>{const r=S.months[k],part=k==='2026-09',h=Math.max(3,Math.round(r.rev/mx*92));return `<div class="mbar${part?' part':''}"><div class="mv">${(r.rev/1e5).toFixed(1)}L</div><div class="col" style="height:${h}px"></div><div class="ml">${MN[+k.slice(5)]}${part?'*':''}</div></div>`;}).join('');}
+
+/* products table */
+function drawProductsTable(){const rows=D.products,mx=Math.max(...rows.map(p=>p.sales));
+  const isSub=t=>/subscription|annual|digest|1 year|lifetime/i.test(t),isBundle=t=>/pack|collection|set\b|box|volume|assorted|combo|titles|ultimate/i.test(t);
+  $('#ptable2').innerHTML=`<thead><tr><th>Product</th><th>Sales</th><th>Units</th><th>Share</th></tr></thead><tbody>`+rows.map((p,i)=>{
+    let tag=isSub(p.title)?'<span class="tag">SUBSCRIPTION</span>':isBundle(p.title)?'<span class="tag bundle">BUNDLE</span>':'';
+    return `<tr><td class="mname"><span class="rk">${i+1}</span>${p.title}${tag}</td><td>${inr(p.sales)}</td><td>${p.qty.toLocaleString('en-IN')}</td><td>${p.share}% <span class="sharebar"><i style="width:${p.sales/mx*100}%"></i></span></td></tr>`;
+  }).join('')+`</tbody>`;}
+
+/* hero */
+function weekly(){let arr=daily.slice(-91),out=[];for(let i=0;i<arr.length;i+=7){let c=arr.slice(i,i+7);if(!c.length)continue;out.push({label:fmtDate(c[c.length-1].d),rev:c.reduce((a,b)=>a+b.rev,0),ord:c.reduce((a,b)=>a+b.ord,0)});}return out;}
+function monthlyB(){return Object.keys(S.months).sort().map(k=>({label:MN[+k.slice(5)]+(k==='2026-09'?'*':''),rev:S.months[k].rev,ord:S.months[k].orders}));}
+let hmode='week';
+function drawHero(){let rows=hmode==='day'?daily.slice(-30).map(r=>({label:fmtDate(r.d),rev:r.rev,ord:r.ord})):hmode==='week'?weekly():monthlyB();
+  const box=$('#herochart'),W=box.clientWidth||560,H=240,padL=38,padR=6,padT=12,padB=24,n=rows.length,gw=(W-padL-padR)/n,maxV=Math.max(...rows.map(r=>r.rev))*1.12,ys=v=>padT+(H-padT-padB)*(1-v/maxV);
+  let grid='';for(let g=0;g<=3;g++){const gv=maxV*g/3,y=ys(gv);grid+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line2)"/><text x="${padL-6}" y="${y+3}" fill="var(--faint)" font-size="10" text-anchor="end" font-family="${FONT}">${(gv/1e5).toFixed(0)}L</text>`;}
+  let bars='';rows.forEach((r,i)=>{const bw=Math.min(hmode==='month'?26:20,gw*0.62),cx=padL+gw*i+gw/2,y=ys(r.rev),base=H-padB;
+    bars+=`<rect data-i="${i}" x="${cx-bw/2}" y="${y}" width="${bw}" height="${base-y}" rx="3" fill="var(--accent)"/>`;
+    let step=n>14?2:1;if(i%step===0)bars+=`<text x="${cx}" y="${H-6}" fill="var(--faint)" font-size="9" text-anchor="middle" font-family="${FONT}">${r.label}</text>`;});
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${grid}${bars}</svg>`;
+  $('#herohint').textContent=`Total sales · ${hmode==='day'?'last 30 days':hmode==='week'?'last 13 weeks':'by month'}`;
+  const svg=box.querySelector('svg'),tip=$('#tip');
+  svg.querySelectorAll('rect[data-i]').forEach(rc=>{rc.addEventListener('mousemove',e=>{const r=rows[+rc.dataset.i],b=svg.getBoundingClientRect();rc.setAttribute('fill','var(--accent-ink)');tip.style.opacity='1';tip.style.left=(e.clientX-b.left)+'px';tip.style.top=(e.clientY-b.top-8)+'px';tip.innerHTML=`${r.label} · <b>${inr(r.rev)}</b> · ${r.ord} ord`;});rc.addEventListener('mouseleave',()=>{rc.setAttribute('fill','var(--accent)');tip.style.opacity='0';});});}
+$('#heroseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;hmode=b.dataset.m;$$('#heroseg button').forEach(x=>x.setAttribute('aria-pressed',x===b));drawHero();});
+
+function drawDonut(){const rows=D.channels,tot=rows.reduce((a,b)=>a+b.sales,0);let off=25,seg='';
+  rows.forEach((r,i)=>{const p=r.sales/tot*100;seg+=`<circle cx="21" cy="21" r="15.915" fill="none" stroke="${CH[i]}" stroke-width="5.5" stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${off}"/>`;off-=p;});
+  $('#donut').innerHTML=`<svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--track)" stroke-width="5.5"/>${seg}</svg><div class="dc"><div class="dt">${lakh(tot)}</div><div class="ds">Total sales</div></div>`;
+  $('#dlegend').innerHTML=rows.map((r,i)=>`<div class="li"><span class="sw" style="background:${CH[i]}"></span><div><div class="lt">${r.name}</div><span class="lv">${lakh(r.sales)}</span> <span class="lp">${(r.sales/tot*100).toFixed(0)}%</span></div></div>`).join('');}
+
+function miniBars(vals,color){const W=110,H=40,n=vals.length,gw=W/n,mx=Math.max(...vals);let b='';vals.forEach((v,i)=>{const bh=Math.max(2,(v/mx)*(H-4)),bw=gw*0.6;b+=`<rect x="${gw*i+gw*0.2}" y="${H-bh}" width="${bw}" height="${bh}" rx="1.5" fill="${color}"/>`;});return `<svg viewBox="0 0 ${W} ${H}" class="spark">${b}</svg>`;}
+function miniArea(el,vals,color){const box=$(el),W=box.clientWidth||280,H=64,pad=2,mn=Math.min(...vals),mx=Math.max(...vals),xs=i=>pad+(W-2*pad)*(i/(vals.length-1)),ys=v=>4+(H-8)*(1-(v-mn)/(mx-mn||1));
+  let dl=vals.map((v,i)=>`${i?'L':'M'}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' ');box.innerHTML=`<svg viewBox="0 0 ${W} ${H}"><path d="${dl} L${xs(vals.length-1)},${H} L${pad},${H} Z" fill="${color}22"/><path d="${dl}" fill="none" stroke="${color}" stroke-width="2"/></svg>`;}
+
+function drawSalesBreakdown(){const b=D.breakdown.b90,gross=b.gross,net=b.net,disc=b.disc,ret=b.returns,total=b.total;
+  const dP=disc/gross*100,rP=ret/gross*100,nP=Math.max(0,100-dP-rP);
+  $('#salesbd').innerHTML=`<div class="stack"><div style="width:${nP}%;background:var(--c1)"></div><div style="width:${dP}%;background:var(--c3)"></div><div style="width:${Math.max(rP,0.4)}%;background:var(--bad)"></div></div>
+    <div class="bdrow"><span>Gross sales</span><b>${lakh(gross)}</b></div>
+    <div class="bdrow neg"><span>− Discounts</span><b>−${inr(disc)} · ${dP.toFixed(1)}%</b></div>
+    <div class="bdrow neg"><span>− Returns</span><b>−${inr(ret)} · ${rP.toFixed(1)}%</b></div>
+    <div class="bdrow tot"><span>Net sales</span><b>${lakh(net)}</b></div>
+    <div class="bdrow"><span>Total sales (Shopify)</span><b>${lakh(total)}</b></div>`;}
+function drawProductPie(){const rows=D.products.slice(0,6),tot=D.total90,others=tot-rows.reduce((a,b)=>a+b.sales,0);
+  const segs=[...rows.map((r,i)=>({v:r.sales,c:CH[i%CH.length],n:r.title})),{v:others,c:'#C3CCDC',n:'Other products'}];
+  let off=25,s='';segs.forEach(g=>{const p=g.v/tot*100;s+=`<circle cx="21" cy="21" r="15.915" fill="none" stroke="${g.c}" stroke-width="5.5" stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${off}"/>`;off-=p;});
+  $('#pdonut').innerHTML=`<svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--track)" stroke-width="5.5"/>${s}</svg><div class="dc"><div class="dt">${lakh(tot)}</div><div class="ds">Products</div></div>`;
+  $('#pdlegend').innerHTML=segs.map(g=>`<div class="li"><span class="sw" style="background:${g.c}"></span><div><div class="lt">${g.n.length>20?g.n.slice(0,19)+'…':g.n}</div><span class="lv">${(g.v/tot*100).toFixed(0)}%</span></div></div>`).join('');}
+function drawCities(){const c=D.cities,mx=c.top[0].sales;
+  $('#citiesw').innerHTML=c.top.map(t=>`<div class="cityrow"><span class="cn">${t.name}</span><div class="cbar"><i style="width:${t.sales/mx*100}%"></i></div><span class="cv">${lakh(t.sales)}<small>${t.orders} ord</small></span></div>`).join('')
+   +`<div class="citynote">Metros drive most demand. A further <b>${lakh(c.othersSales)}</b> came from other cities (${c.othersOrders} orders); <b>${lakh(c.unspecified.sales)}</b> of bulk / draft orders carry no shipping city.</div>`;}
+function initWidgets(){
+  drawHero();drawKPIs();drawChanBars();drawCustBars();drawSalesBreakdown();drawProductPie();drawPacing();drawProductsTable();drawCities();
+  const l14=daily.slice(-14);
+  const sc=[{l:'This week · revenue',v:lakh(S.b7.rev),d:wowR,vals:l14.map(r=>r.rev),c:'--c1'},{l:'Avg order value',v:inr(S.b7.aov),d:S.wow_aov,vals:l14.map(r=>r.aov),c:'--c5'},{l:'Orders · this week',v:S.b7.orders,d:wowO,vals:l14.map(r=>r.ord),c:'--c2'}];
+  $('#statcards').innerHTML=sc.map(s=>`<div class="card"><div class="mini"><div><div class="ml">${s.l}</div><div class="mv">${s.v}</div><div class="md"><span class="delta ${delCls(s.d)}">${pctTxt(s.d)}</span> vs prior 7d</div></div>${miniBars(s.vals,CSSV(s.c))}</div></div>`).join('');
+  const m26=D.monthly.filter(m=>m.y===2026);
+  function yoy(m){const a=D.monthly.find(x=>x.y===2026&&x.m===m),b=D.monthly.find(x=>x.y===2025&&x.m===m);return b?{r:(a.rev-b.rev)/b.rev*100,o:(a.ord-b.ord)/b.ord*100}:null;}
+  $('#monthtable').innerHTML=`<thead><tr class="grouphead"><th></th><th colspan="3">This year (2026)</th><th colspan="2" class="gsep">vs 2025</th></tr><tr><th>Month</th><th>Revenue</th><th>Orders</th><th>AOV</th><th class="gsep">Revenue</th><th>Orders</th></tr></thead><tbody>`+m26.map(m=>{const y=yoy(m.m);return `<tr><td class="mname">${MN[m.m]}${m.m===9?' *':''}</td><td>${lakh(m.rev)}</td><td>${m.ord.toLocaleString('en-IN')}</td><td>${inr(m.aov)}</td><td class="gsep"><span class="updown ${y&&y.r>=0?'up':'down'}">${y?pctTxt(y.r):'—'}</span></td><td><span class="updown ${y&&y.o>=0?'up':'down'}">${y?pctTxt(y.o):'—'}</span></td></tr>`;}).join('')+`</tbody>`;
+  miniArea;
+  $('#cmp').innerHTML=[{l:'August revenue · YoY',v:pctTxt(Y.aug_yoy),s:`${lakh(Y.aug26)} vs ${lakh(Y.aug25)} last year`,d:Y.aug_yoy},{l:'Year to date · Jan–Aug',v:pctTxt(Y.ytd_yoy),s:`${lakh(Y.ytd26)} vs ${lakh(Y.ytd25)}`,d:Y.ytd_yoy},{l:'Sept proj. vs last Sept',v:pctTxt((S.proj_rev-Y.sep25)/Y.sep25*100),s:`~${lakh(S.proj_rev)} vs ${lakh(Y.sep25)}`,d:(S.proj_rev-Y.sep25)/Y.sep25*100}].map(c=>`<div class="card c"><div class="cl">${c.l}</div><div class="cv delta ${delCls(c.d)}">${c.v}</div><div class="cs">${c.s}</div></div>`).join('');
+  drawLine();drawHeat();drawYoY();
+}
+
+/* line */
+let range='90';
+function drawLine(){const box=$('#linechart');if(!box)return;const W=box.clientWidth||840,H=280,padL=14,padR=14,padT=16,padB=26;let rows=range==='all'?daily:daily.slice(-(+range));
+  const xs=i=>padL+(W-padL-padR)*(i/(rows.length-1)),maxV=Math.max(...rows.map(r=>r.rev))*1.08,ys=v=>padT+(H-padT-padB)*(1-v/maxV);
+  let grid='';for(let g=0;g<=4;g++){const gv=maxV*g/4,y=ys(gv);grid+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line2)"/><text x="${padL}" y="${y-4}" fill="var(--faint)" font-size="10.5" font-family="${FONT}">${lakh(gv)}</text>`;}
+  let dl=rows.map((r,i)=>`${i?'L':'M'}${xs(i).toFixed(1)},${ys(r.rev).toFixed(1)}`).join(' '),da=dl+` L${xs(rows.length-1).toFixed(1)},${H-padB} L${padL},${H-padB} Z`;
+  let xl='',st=Math.max(1,Math.floor(rows.length/6));for(let i=0;i<rows.length;i+=st)xl+=`<text x="${xs(i)}" y="${H-6}" fill="var(--faint)" font-size="10.5" text-anchor="middle" font-family="${FONT}">${fmtDate(rows[i].d)}</text>`;
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${grid}<path d="${da}" fill="var(--accent-soft)"/><path d="${dl}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/><circle cx="${xs(rows.length-1)}" cy="${ys(rows[rows.length-1].rev)}" r="3.5" fill="var(--accent)"/>${xl}<line id="cross" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="var(--ink)" opacity="0"/><circle id="cdot" r="4" fill="var(--accent)" opacity="0"/></svg>`;
+  $('#trendhint').textContent=`Daily total sales · ${rows.length} days · peak ${lakh(Math.max(...rows.map(r=>r.rev)))}`;
+  const svg=box.querySelector('svg'),cr=svg.querySelector('#cross'),cd=svg.querySelector('#cdot'),tip=$('#tip2');
+  svg.addEventListener('mousemove',e=>{const rc=svg.getBoundingClientRect(),rx=(e.clientX-rc.left)/rc.width*W;let i=Math.round((rx-padL)/((W-padL-padR)/(rows.length-1)));i=Math.max(0,Math.min(rows.length-1,i));const px=xs(i),py=ys(rows[i].rev);cr.setAttribute('x1',px);cr.setAttribute('x2',px);cr.setAttribute('opacity','.3');cd.setAttribute('cx',px);cd.setAttribute('cy',py);cd.setAttribute('opacity','1');tip.style.opacity='1';tip.style.left=(px/W*rc.width)+'px';tip.style.top=(py/H*rc.height)+'px';tip.innerHTML=`${fmtDate(rows[i].d)} · <b>${inr(rows[i].rev)}</b> · ${rows[i].ord} ord`;});
+  svg.addEventListener('mouseleave',()=>{cr.setAttribute('opacity','0');cd.setAttribute('opacity','0');tip.style.opacity='0';});}
+$('#rangeseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;range=b.dataset.r;$$('#rangeseg button').forEach(x=>x.setAttribute('aria-pressed',x===b));drawLine();});
+let hm='rev';
+function drawHeat(){const rows=daily.slice(-14),key=hm,vals=rows.map(r=>r[key]),mn=Math.min(...vals),mx=Math.max(...vals);const shade=v=>`color-mix(in srgb, var(--accent) ${8+(v-mn)/(mx-mn||1)*72}%, var(--surface))`;const fmt=r=>hm==='rev'?lakh(r.rev):hm==='ord'?r.ord:inr(r.aov);const cell=r=>`<div class="cell" style="background:${shade(r[key])}"><div class="cd">${fmtDate(r.d)}</div><div class="cv">${fmt(r)}</div></div>`;
+  $('#heat').innerHTML=`<div class="heatrow">${rows.slice(0,7).map(cell).join('')}</div><div class="heatrow">${rows.slice(7).map(cell).join('')}</div>`;$('#leglo').textContent=hm==='rev'?lakh(mn):hm==='ord'?mn+' ord':inr(mn);$('#leghi').textContent=hm==='rev'?lakh(mx):hm==='ord'?mx+' ord':inr(mx);}
+$('#heatseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;hm=b.dataset.m;$$('#heatseg button').forEach(x=>x.setAttribute('aria-pressed',x===b));drawHeat();});
+function drawYoY(){const box=$('#yoychart');if(!box)return;const W=box.clientWidth||840,H=260,padL=40,padR=8,padT=14,padB=26,rows=D.yoy,n=rows.length,gw=(W-padL-padR)/n,maxV=Math.max(...rows.flatMap(r=>[r.rev25,r.rev26]))*1.1,ys=v=>padT+(H-padT-padB)*(1-v/maxV);
+  let grid='';for(let g=0;g<=4;g++){const gv=maxV*g/4,y=ys(gv);grid+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line2)"/><text x="${padL-6}" y="${y+3}" fill="var(--faint)" font-size="10" text-anchor="end" font-family="${FONT}">${(gv/1e5).toFixed(0)}L</text>`;}
+  let bars='';rows.forEach((r,i)=>{const cx=padL+gw*i+gw/2,bw=Math.min(18,gw*0.32),base=H-padB,y25=ys(r.rev25),y26=ys(r.rev26);bars+=`<rect x="${cx-bw-1}" y="${y25}" width="${bw}" height="${base-y25}" rx="3" fill="#C3CCDC"/><rect x="${cx+1}" y="${y26}" width="${bw}" height="${base-y26}" rx="3" fill="var(--accent)"/><text x="${cx}" y="${H-8}" fill="var(--muted)" font-size="10.5" text-anchor="middle" font-family="${FONT}">${MN[r.m]}</text><text x="${cx}" y="${Math.min(y25,y26)-5}" fill="var(--${r.pct>=0?'good':'bad'})" font-size="9" text-anchor="middle" font-family="${FONT}" font-weight="700">${r.pct>0?'+':''}${r.pct.toFixed(0)}%</text>`;});
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${grid}${bars}</svg>`;}
+
+/* RAIL insights */
+const HL=[
+ {c:'crit',lead:'Demand cooled this week.',txt:`Last 7 days booked <b>${lakh(S.b7.rev)}</b> / <b>${S.b7.orders} orders</b> — down <b>${pctTxt(wowR)}</b> revenue and <b>${pctTxt(wowO)}</b> orders vs the prior week. AOV held (<b>${inr(S.b7.aov)}</b>).`},
+ {c:'crit',lead:'August fell sharply YoY.',txt:`August did <b>${lakh(Y.aug26)}</b> vs <b>${lakh(Y.aug25)}</b> a year ago — <b>${pctTxt(Y.aug_yoy)}</b>. September paces to ~${lakh(S.proj_rev)}, below last Sept’s ${lakh(Y.sep25)}.`},
+ {c:'note',lead:'Full-year is holding.',txt:`Jan–Aug revenue is <b>${lakh(Y.ytd26)}</b> — flat vs 2025 (<b>${pctTxt(Y.ytd_yoy)}</b>). A strong May–July offset August; the slowdown is recent, not structural.`},
+ {c:'watch',lead:'Baskets are shrinking.',txt:`August AOV <b>${inr(Y.aug_aov26)}</b> vs <b>${inr(Y.aug_aov25)}</b> last year. More, smaller orders.`},
+ {c:'watch',lead:'Repeat purchase is thin.',txt:`Returning customers only <b>${repeatShare.toFixed(1)}%</b> of 90-day revenue — the clearest untapped lever.`},
+ {c:'good',lead:'Catalogue depth is a strength.',txt:`No title dominates — top seller <b>8.4%</b>, top 5 under 30%. Resilient to any one product dipping.`},
+];
+$('#hl-list').innerHTML=HL.map(h=>`<div class="hl ${h.c}"><span class="sev"></span><div><div class="lead">${h.lead}</div><div class="txt">${h.txt}</div></div></div>`).join('');
+const FIND=[
+ {t:'Slowdown is recent, not structural.',b:`Jan–Aug (<b>${lakh(Y.ytd26)}</b>) is within <b>${pctTxt(Y.ytd_yoy)}</b> of 2025. May (+21%) and June (+34% YoY) carried the year; the drop is concentrated in August and September.`},
+ {t:'Basket size is compressing.',b:`August AOV fell ~31% YoY (${inr(Y.aug_aov26)} vs ${inr(Y.aug_aov25)}). The high-ticket bulk that padded 2025 has thinned out.`},
+ {t:'Bulk / B2B drives volatility.',b:`Draft orders = <b>${lakh(1056755)}</b> from just <b>7 orders</b> in 90 days. Manage as a pipeline, not organic demand.`},
+ {t:'Retention is the structural gap.',b:`Returning customers only <b>${repeatShare.toFixed(1)}%</b> of revenue — low for a catalogue with subscriptions and staged sets.`},
+ {t:'Q4 is seasonally weak.',b:`Across 2024–25, Oct–Nov were the softest months. The August dip lands just ahead of that trough.`},
+];
+$('#findings').innerHTML=FIND.map((f,i)=>`<div class="find"><div class="ft"><span class="fnum">${i+1}</span>${f.t}</div><div class="fb">${f.b}</div></div>`).join('');
+const REC=[
+ {p:'high',t:'Arrest the Aug–Sept slide',b:`Revenue is <b>${pctTxt(Y.aug_yoy)}</b> YoY in August. Split the cause — traffic, conversion, lost bulk orders — and fix the largest first.`},
+ {p:'high',t:'Rebuild average order value',b:`AOV down ~31% YoY. Merchandise bundles &amp; subscriptions harder — “complete the collection” offers and free-shipping thresholds are the fastest levers.`},
+ {p:'med',t:'Make bulk / B2B repeatable',b:`₹10.6L from 7 orders shows institutional demand (schools, libraries, gifting). A named B2B motion makes it forecastable.`},
+ {p:'med',t:'Launch a retention loop',b:`Post-purchase + renewal flow. Reaching 15% repeat adds ~<b>₹3.7L/quarter</b> — pure margin.`},
+ {p:'watch',t:'Pre-empt the Q4 dip',b:`Oct–Nov are seasonally soft. Plan the festive / gifting push and subscription drive now.`},
+];
+$('#recs').innerHTML=REC.map(r=>`<div class="rec ${r.p}"><div class="rh"><span class="rt">${r.t}</span><span class="pri ${r.p}">${r.p==='high'?'High':r.p==='med'?'Med':'Watch'}</span></div><div class="rb">${r.b}</div></div>`).join('');
+
+window.addEventListener('resize',()=>{clearTimeout(window._rt);window._rt=setTimeout(()=>{if(!$('#app').hidden){drawHero();drawLine();drawYoY();miniArea;}},150);});
+$('#exportbtn').addEventListener('click',()=>window.print());
+
+const USER="Rahul Katyayani",PASS="Rahul Katyayani";
+function reveal(){$('#gate').hidden=true;$('#app').hidden=false;initWidgets();}
+try{if(sessionStorage.getItem('aria_auth')==='1')reveal();}catch(e){}
+$('#gateform').addEventListener('submit',ev=>{ev.preventDefault();const u=$('#gu').value.trim(),p=$('#gp').value;if(u.toLowerCase()===USER.toLowerCase()&&p===PASS){try{sessionStorage.setItem('aria_auth','1')}catch(e){}$('#gerr').textContent='';reveal();}else{$('#gerr').textContent='Incorrect username or password.';}});
+$('#signout').addEventListener('click',()=>{try{sessionStorage.removeItem('aria_auth')}catch(e){}location.reload();});
+</script>
