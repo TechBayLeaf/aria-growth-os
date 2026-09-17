@@ -1,5 +1,6 @@
-# transient refresh inputs (regenerated each run)
+# transient refresh inputs/outputs (regenerated each run)
 refresh/raw_*.txt
+refresh/summary.json
 refresh/repo/
 # scratch
 *.png

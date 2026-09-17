@@ -248,5 +248,17 @@ blob = "const DATA=" + json.dumps(DATA, ensure_ascii=False) + ";"
 html, n = re.subn(r"const DATA=\{.*?\};", lambda m: blob, html, count=1, flags=re.S)
 assert n == 1, "DATA block not found in index.html"
 open(INDEX, "w", encoding="utf-8").write(html)
+
+# email-ready summary (read by the weekly task to compose the notification email)
+def L(v):
+    return (f"₹{v/1e5:.2f} L" if abs(v) >= 1e5 else f"₹{round(v):,}")
+summary_out = {
+    "refreshed": S["refreshed"], "window": S["window"],
+    "rev30": L(b30["rev"]), "sep_mtd": L(sep_rev), "sep_orders": sep_orders,
+    "week_rev": L(b7["rev"]), "wow_rev_pct": round(S["wow_rev"], 1),
+    "aug_yoy_pct": ym["aug_yoy"], "url": "https://aria-ack-dashboard.netlify.app",
+}
+json.dump(summary_out, open(os.path.join(HERE, "summary.json"), "w"), ensure_ascii=False)
 print(f"OK  refreshed={S['refreshed']}  window={S['window']}  "
       f"sep_rev={sep_rev}  b7_rev={b7['rev']}  cities_top={len(top)}  products={len(prods)}")
+print("SUMMARY " + json.dumps(summary_out, ensure_ascii=False))
