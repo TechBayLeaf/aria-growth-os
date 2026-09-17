@@ -1,6 +1,8 @@
+# transient refresh inputs (regenerated each run)
+refresh/raw_*.txt
+refresh/repo/
+# scratch
+*.png
+shot*.js
 node_modules/
-.env
-.env.local
 .DS_Store
-dist/
-build/
